@@ -68,4 +68,74 @@ class QuestionAnswer < ApplicationRecord
       self.source_type = document.present? ? "document" : "query"
     end
   end
+
+  # Graph-related methods
+  public
+
+  def graph_node
+    @graph_node ||= QuestionNode.from_active_record(self)
+  end
+
+  def create_or_update_graph_node
+    node = QuestionNode.find_by(global_id: to_global_id.to_s)
+
+    if node
+      # Update existing node
+      node.update!(
+        content: question,
+        answer: answer,
+        answer_confidence: confidence_score,
+        answer_updated_at: DateTime.current,
+        updated_at: DateTime.current
+      )
+    else
+      # Create new node
+      node = QuestionNode.create!(
+        global_id: to_global_id.to_s,
+        organization_id: organization_id,
+        content: question,
+        answer: answer,
+        answer_confidence: confidence_score,
+        answer_updated_at: DateTime.current
+      )
+    end
+
+    node
+  end
+
+  def graph_node
+    @graph_node ||= QuestionNode.find_by(global_id: to_global_id.to_s)
+  end
+
+  def sync_entities_to_graph(entity_names)
+    node = graph_node || create_or_update_graph_node
+    node.extract_entities(entity_names)
+  end
+
+  def sync_topics_to_graph(topic_names)
+    node = graph_node || create_or_update_graph_node
+    node.extract_topics(topic_names)
+  end
+
+  def find_relevant_documents_via_graph
+    return [] unless graph_node
+
+    # Get documents through graph traversal
+    document_nodes = graph_node.relevant_documents
+
+    # Convert back to ActiveRecord models
+    document_nodes.map do |node|
+      Document.find_by(id: node.global_id.split("/").last)
+    end.compact
+  end
+
+  def should_update_for_document?(document)
+    return false unless graph_node && document.graph_node
+    graph_node.needs_update?(document.graph_node)
+  end
+
+  def link_to_document_in_graph(document)
+    return unless graph_node && document.graph_node
+    graph_node.uses_document << document.graph_node unless graph_node.uses_document.include?(document.graph_node)
+  end
 end

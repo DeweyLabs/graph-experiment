@@ -64,10 +64,8 @@ end
 # ActiveInteraction for business logic
 gem "active_interaction", "~> 5.3"
 
-# Neo4j for graph database - TO BE ADDED LATER
-# gem "neo4j", "~> 9.6"
-# gem "neo4j-core"
-# gem "neo4j-rake_tasks"
+# Neo4j for graph database
+gem "activegraph", "~> 12.0.0.beta.5"
 
 # Pinecone for vector database
 gem "pinecone", "~> 0.1.0", require: false

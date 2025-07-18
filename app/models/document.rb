@@ -56,4 +56,68 @@ class Document < ApplicationRecord
   def update_chunk_count
     self.chunk_count = document_chunks.count if embedding_status == "completed"
   end
+
+  # Graph-related methods
+  public
+
+  def graph_node
+    @graph_node ||= DocumentNode.from_active_record(self)
+  end
+
+  def create_or_update_graph_node
+    node = DocumentNode.find_by(global_id: to_global_id.to_s)
+
+    if node
+      # Update existing node
+      node.update!(
+        name: title,
+        source_id: source_id.to_s,
+        content_hash: Digest::SHA256.hexdigest(content),
+        metadata: metadata,
+        updated_at: DateTime.current
+      )
+    else
+      # Create new node
+      node = DocumentNode.create!(
+        global_id: to_global_id.to_s,
+        organization_id: organization_id,
+        name: title,
+        source_id: source_id.to_s,
+        content_hash: Digest::SHA256.hexdigest(content),
+        metadata: metadata
+      )
+    end
+
+    node
+  end
+
+  def graph_node
+    @graph_node ||= DocumentNode.find_by(global_id: to_global_id.to_s)
+  end
+
+  def sync_entities_to_graph(entity_names)
+    node = graph_node || create_or_update_graph_node
+    node.extract_entities(entity_names)
+  end
+
+  def sync_topics_to_graph(topic_names)
+    node = graph_node || create_or_update_graph_node
+    node.extract_topics(topic_names)
+  end
+
+  def affected_questions_from_graph
+    graph_node&.affected_questions&.map(&:active_record_model)&.compact || []
+  end
+
+  def find_related_questions_via_graph
+    return [] unless graph_node
+
+    # Get questions through graph traversal
+    question_nodes = graph_node.affected_questions
+
+    # Convert back to ActiveRecord models
+    question_nodes.map do |node|
+      QuestionAnswer.find_by(id: node.global_id.split("/").last)
+    end.compact
+  end
 end

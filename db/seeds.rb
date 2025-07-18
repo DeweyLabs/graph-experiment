@@ -846,3 +846,181 @@ puts "  Source.active.count"
 puts "  Document.processed.count"
 puts "  DocumentChunk.with_embeddings.count"
 puts "  QuestionAnswer.high_confidence.count"
+
+# Seed Neo4j graph data
+puts "\nSeeding Neo4j graph data..."
+puts "=" * 50
+
+# Clear existing graph data in development
+if Rails.env.development?
+  puts "Clearing existing graph data..."
+  # Temporarily commented out to debug
+  # acme_corp.clear_graph_data!
+  # startup_inc.clear_graph_data!
+  # demo_org.clear_graph_data!
+end
+
+# Create document nodes
+puts "Creating document nodes in graph..."
+docs.each do |doc|
+  doc.create_or_update_graph_node
+  puts "  Created DocumentNode for: #{doc.title}"
+
+  # Extract entities and topics based on document content
+  case doc.title
+  when "Engineering Handbook"
+    doc.sync_entities_to_graph(["Code Review", "Deployment Process", "On-Call", "PagerDuty", "Datadog", "Slack", "Jira"])
+    doc.sync_topics_to_graph(["Engineering Process", "DevOps", "Team Management"])
+  when "API Documentation"
+    doc.sync_entities_to_graph(["OAuth 2.0", "API", "Rate Limiting", "Authentication", "REST"])
+    doc.sync_topics_to_graph(["API", "Documentation", "Authentication"])
+  when "Product Roadmap 2024"
+    doc.sync_entities_to_graph(["Search Enhancement", "Multi-tenancy", "AI Q&A", "Pinecone", "Analytics Dashboard"])
+    doc.sync_topics_to_graph(["Product Planning", "Features", "Roadmap"])
+  when "Engineering Team Meeting - March 15"
+    doc.sync_entities_to_graph(["Sarah Chen", "Mike Johnson", "Lisa Park", "Tom Williams", "Amy Rodriguez", "Kubernetes"])
+    doc.sync_topics_to_graph(["Team Meeting", "Sprint Planning", "Technical Debt"])
+  when "Troubleshooting Guide"
+    doc.sync_entities_to_graph(["Rails", "PostgreSQL", "Database", "Performance", "Authentication"])
+    doc.sync_topics_to_graph(["Troubleshooting", "Operations", "Debugging"])
+  end
+end
+
+# Create question nodes
+puts "\nCreating question nodes in graph..."
+QuestionAnswer.find_each do |qa|
+  qa.create_or_update_graph_node
+  puts "  Created QuestionNode for: #{qa.question.truncate(60)}"
+
+  # Extract entities and topics based on question content
+  case qa.question
+  when /code review/i
+    qa.sync_entities_to_graph(["Code Review", "Pull Request", "Testing"])
+    qa.sync_topics_to_graph(["Engineering Process", "Quality Assurance"])
+  when /deployment/i
+    qa.sync_entities_to_graph(["Deployment", "CI/CD", "Production", "Staging"])
+    qa.sync_topics_to_graph(["DevOps", "Deployment"])
+  when /API|authenticate/i
+    qa.sync_entities_to_graph(["API", "OAuth 2.0", "Authentication", "Access Token"])
+    qa.sync_topics_to_graph(["API", "Security", "Authentication"])
+  when /rate limit/i
+    qa.sync_entities_to_graph(["API", "Rate Limiting", "Throttling"])
+    qa.sync_topics_to_graph(["API", "Performance", "Limits"])
+  when /password/i
+    qa.sync_entities_to_graph(["Password", "Security", "Authentication"])
+    qa.sync_topics_to_graph(["Security", "User Management"])
+  when /git|branch/i
+    qa.sync_entities_to_graph(["Git", "Version Control", "Git Flow"])
+    qa.sync_topics_to_graph(["Development Process", "Version Control"])
+  end
+
+  # Link questions to their source documents
+  if qa.document
+    qa.link_to_document_in_graph(qa.document)
+  end
+end
+
+# Create some claims from documents
+puts "\nCreating claims from documents..."
+engineering_doc = docs.find { |d| d.title == "Engineering Handbook" }
+engineering_doc_node = engineering_doc.graph_node || engineering_doc.create_or_update_graph_node
+
+claim1 = ClaimNode.create!(
+  global_id: "claim_#{SecureRandom.hex(8)}",
+  organization_id: acme_corp.id,
+  content: "Code review requires at least one approving review from a team member",
+  confidence_score: 0.95,
+  extraction_metadata: {method: "rule_based", timestamp: Time.current}
+)
+claim1.extracted_from << engineering_doc_node
+claim1.add_entity("Code Review")
+claim1.add_topic("Engineering Process")
+puts "  Created claim: #{claim1.content.truncate(60)}"
+
+claim2 = ClaimNode.create!(
+  global_id: "claim_#{SecureRandom.hex(8)}",
+  organization_id: acme_corp.id,
+  content: "All automated tests must pass before merging",
+  confidence_score: 0.98,
+  extraction_metadata: {method: "rule_based", timestamp: Time.current}
+)
+claim2.extracted_from << engineering_doc_node
+claim2.add_entity("Testing")
+claim2.add_topic("Quality Assurance")
+claim2.supports << claim1  # This claim supports the first one
+puts "  Created claim: #{claim2.content.truncate(60)}"
+
+# Create entity relationships
+puts "\nCreating entity relationships..."
+code_review = EntityNode.find_by(name: "Code Review", organization_id: acme_corp.id)
+testing = EntityNode.find_by(name: "Testing", organization_id: acme_corp.id)
+if code_review && testing
+  code_review.related_to << testing unless code_review.related_to.include?(testing)
+  puts "  Linked entities: Code Review -> Testing"
+end
+
+# Create topic hierarchy
+puts "\nCreating topic hierarchy..."
+eng_process = TopicNode.find_by(name: "Engineering Process", organization_id: acme_corp.id)
+qa_topic = TopicNode.find_by(name: "Quality Assurance", organization_id: acme_corp.id)
+if eng_process && qa_topic
+  qa_topic.parent_topics << eng_process unless qa_topic.parent_topics.include?(eng_process)
+  puts "  Created topic hierarchy: Engineering Process -> Quality Assurance"
+end
+
+# Create evidence nodes
+puts "\nCreating evidence nodes..."
+evidence1 = EvidenceNode.create_from_document(
+  engineering_doc_node,
+  "At least one approving review from a team member",
+  engineering_handbook_content.index("At least one approving review"),
+  engineering_handbook_content.index("At least one approving review") + 45,
+  150
+)
+evidence1.supports_claims << claim1
+puts "  Created evidence for claim about code review"
+
+# Print graph statistics
+puts "\nGraph Statistics:"
+puts "=" * 50
+driver = Neo4jDriver
+driver.session do |session|
+  # Count nodes
+  node_counts = {}
+  %w[ClaimNode DocumentNode QuestionNode EntityNode TopicNode EvidenceNode].each do |node_type|
+    result = session.run("MATCH (n:#{node_type}) RETURN count(n) as count")
+    node_counts[node_type] = result.first[:count]
+  end
+
+  # Count relationships
+  rel_counts = {}
+  %w[MENTIONS RELATED_TO EXTRACTED_FROM USES_DOCUMENT SUPPORTS].each do |rel_type|
+    result = session.run("MATCH ()-[r:#{rel_type}]->() RETURN count(r) as count")
+    rel_counts[rel_type] = result.first[:count]
+  end
+
+  puts "Nodes created:"
+  node_counts.each { |type, count| puts "  #{type}: #{count}" }
+
+  puts "\nRelationships created:"
+  rel_counts.each { |type, count| puts "  #{type}: #{count}" if count > 0 }
+end
+
+puts "\nGraph seeding completed!"
+puts "=" * 50
+
+# Example graph queries
+puts "\nExample Neo4j queries to try:"
+puts "  # Find questions affected by a document update"
+puts "  doc = Document.first"
+puts "  doc.affected_questions_from_graph"
+puts ""
+puts "  # Find relevant documents for a question"
+puts "  qa = QuestionAnswer.first"
+puts "  qa.find_relevant_documents_via_graph"
+puts ""
+puts "  # Check if a question needs updating for a new document"
+puts "  qa.should_update_for_document?(doc)"
+puts ""
+puts "  # Get organization graph statistics"
+puts "  Organization.first.graph_statistics"

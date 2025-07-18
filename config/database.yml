@@ -117,13 +117,6 @@ production:
     password: <%= ENV["DATABASE_PASSWORD"] %>
     host: <%= ENV["DATABASE_HOST"] %>
     
-  neo4j:
-    adapter: neo4j
-    host: <%= ENV["NEO4J_HOST"] %>
-    port: <%= ENV["NEO4J_PORT"] %>
-    username: <%= ENV["NEO4J_USERNAME"] %>
-    password: <%= ENV["NEO4J_PASSWORD"] %>
-    
   cache:
     <<: *primary_production
     database: dewey_production_cache

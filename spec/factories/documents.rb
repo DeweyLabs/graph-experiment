@@ -1,7 +1,7 @@
 FactoryBot.define do
   factory :document do
-    source
-    organization { source&.organization || build(:organization) }
+    organization
+    source { build(:source, organization: organization) }
     external_id { Faker::Alphanumeric.alphanumeric(number: 16) }
     title { Faker::Book.title }
     content { Faker::Lorem.paragraphs(number: 5).join("\n\n") }

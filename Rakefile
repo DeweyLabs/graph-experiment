@@ -4,3 +4,10 @@
 require_relative "config/application"
 
 Rails.application.load_tasks
+
+# Load ActiveGraph migration tasks
+begin
+  require "active_graph/tasks/migration"
+rescue LoadError
+  # ActiveGraph tasks not available
+end
