@@ -65,13 +65,6 @@ test:
     username: <%= ENV.fetch("DATABASE_USERNAME", "postgres") %>
     password: <%= ENV.fetch("DATABASE_PASSWORD", "") %>
     
-  neo4j:
-    adapter: neo4j
-    host: <%= ENV.fetch("NEO4J_HOST", "localhost") %>
-    port: <%= ENV.fetch("NEO4J_PORT", 7687) %>
-    username: <%= ENV.fetch("NEO4J_USERNAME", "neo4j") %>
-    password: <%= ENV.fetch("NEO4J_PASSWORD", "password") %>
-    
   cache:
     <<: *default
     database: dewey_test_cache
