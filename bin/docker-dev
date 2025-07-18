@@ -1,0 +1,94 @@
+#!/bin/bash
+# Development helper script for Docker
+
+set -e
+
+case "$1" in
+  "up")
+    echo "Starting all services..."
+    docker-compose up -d
+    echo "Services started. Rails app available at http://localhost:3000"
+    echo "Neo4j browser available at http://localhost:7474"
+    ;;
+  
+  "down")
+    echo "Stopping all services..."
+    docker-compose down
+    ;;
+  
+  "build")
+    echo "Building containers..."
+    docker-compose build
+    ;;
+  
+  "logs")
+    shift
+    docker-compose logs -f "$@"
+    ;;
+  
+  "rails")
+    shift
+    docker-compose exec web rails "$@"
+    ;;
+  
+  "console")
+    docker-compose exec web rails console
+    ;;
+  
+  "test")
+    shift
+    if [ -z "$1" ]; then
+      echo "Running all tests..."
+      docker-compose exec test bundle exec rspec
+    else
+      docker-compose exec test bundle exec rspec "$@"
+    fi
+    ;;
+  
+  "migrate")
+    echo "Running migrations..."
+    docker-compose exec web rails db:migrate
+    docker-compose exec test rails db:migrate RAILS_ENV=test
+    ;;
+  
+  "reset")
+    echo "Resetting databases..."
+    docker-compose exec web rails db:drop db:create db:migrate db:seed
+    docker-compose exec test rails db:drop db:create db:migrate RAILS_ENV=test
+    ;;
+  
+  "bash")
+    shift
+    service="${1:-web}"
+    docker-compose exec "$service" bash
+    ;;
+  
+  "bundle")
+    shift
+    docker-compose exec web bundle "$@"
+    ;;
+  
+  "yarn")
+    shift
+    docker-compose exec web yarn "$@"
+    ;;
+  
+  *)
+    echo "Usage: bin/docker-dev {up|down|build|logs|rails|console|test|migrate|reset|bash|bundle|yarn}"
+    echo ""
+    echo "Commands:"
+    echo "  up        - Start all services"
+    echo "  down      - Stop all services"
+    echo "  build     - Build containers"
+    echo "  logs      - Show logs (optionally specify service)"
+    echo "  rails     - Run rails commands"
+    echo "  console   - Open rails console"
+    echo "  test      - Run tests (optionally specify file/pattern)"
+    echo "  migrate   - Run database migrations"
+    echo "  reset     - Reset databases"
+    echo "  bash      - Open bash shell (default: web, or specify service)"
+    echo "  bundle    - Run bundle commands"
+    echo "  yarn      - Run yarn commands"
+    exit 1
+    ;;
+esac
