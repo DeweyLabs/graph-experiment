@@ -74,7 +74,7 @@ gem "pinecone", "~> 0.1.0", require: false
 gem "ruby-openai", require: false
 
 # Background jobs
-gem "sidekiq", "~> 7.0"
+gem "sidekiq", "~> 8.0"
 
 # Pagination
 gem "kaminari"
