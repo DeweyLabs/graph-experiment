@@ -611,10 +611,10 @@ docs.select { |d| d.embedding_status == "pending" }.each do |doc|
     chunk_size: 800,
     chunk_overlap: 100
   )
-  
+
   if result.valid? && result.result.present?
     puts "  Created #{result.result.size} chunks for: #{doc.title}"
-    
+
     # Simulate embeddings for some chunks
     result.result.sample([3, result.result.size].min).each do |chunk|
       # Generate a fake embedding vector (1536 dimensions for OpenAI ada-002)
@@ -625,7 +625,7 @@ docs.select { |d| d.embedding_status == "pending" }.each do |doc|
       )
     end
   else
-    error_msg = result.errors.present? ? result.errors.full_messages.join(', ') : "No chunks created"
+    error_msg = result.errors.present? ? result.errors.full_messages.join(", ") : "No chunks created"
     puts "  Failed to chunk document: #{doc.title} - #{error_msg}"
   end
 end
@@ -633,8 +633,9 @@ end
 # Create Question/Answer pairs
 puts "Creating question/answer pairs..."
 
+# Document-based Q&As
 # For Engineering Handbook
-qa1 = QuestionAnswer.create!(
+QuestionAnswer.create!(
   organization: acme_corp,
   document: docs[0],
   question: "What are the requirements for code review approval?",
@@ -649,7 +650,7 @@ qa1 = QuestionAnswer.create!(
   }
 )
 
-qa2 = QuestionAnswer.create!(
+QuestionAnswer.create!(
   organization: acme_corp,
   document: docs[0],
   question: "What is our deployment schedule?",
@@ -664,7 +665,7 @@ qa2 = QuestionAnswer.create!(
 )
 
 # For API Documentation
-qa3 = QuestionAnswer.create!(
+QuestionAnswer.create!(
   organization: acme_corp,
   document: docs[1],
   question: "How do I authenticate with the API?",
@@ -674,7 +675,7 @@ qa3 = QuestionAnswer.create!(
   pinecone_id: "qa_#{acme_corp.id}_#{SecureRandom.hex(8)}"
 )
 
-qa4 = QuestionAnswer.create!(
+QuestionAnswer.create!(
   organization: acme_corp,
   document: docs[1],
   question: "What are the API rate limits?",
@@ -685,7 +686,7 @@ qa4 = QuestionAnswer.create!(
 )
 
 # For Troubleshooting Guide
-qa5 = QuestionAnswer.create!(
+QuestionAnswer.create!(
   organization: demo_org,
   document: docs[5],
   question: "What should I do if the application won't start?",
@@ -693,6 +694,136 @@ qa5 = QuestionAnswer.create!(
   context: "Application Won't Start - Solutions: Check if port 3000 is already in use: lsof -i :3000, Verify database is running: pg_isready, Check environment variables are set correctly, Run database migrations: rails db:migrate",
   confidence_score: 0.94,
   pinecone_id: "qa_#{demo_org.id}_#{SecureRandom.hex(8)}"
+)
+
+# Create Query-based Q&As (from user searches/chats)
+puts "\nCreating query-based question/answer pairs..."
+
+# Acme Corp query-based Q&As
+QuestionAnswer.create!(
+  organization: acme_corp,
+  document: nil,
+  source_type: "query",
+  question: "How do I reset my password?",
+  answer: "To reset your password, click on the 'Forgot Password' link on the login page. Enter your email address and you'll receive a password reset link. The link is valid for 24 hours. If you don't receive the email, check your spam folder or contact IT support.",
+  context: nil,
+  confidence_score: 0.85,
+  pinecone_id: "qa_#{acme_corp.id}_#{SecureRandom.hex(8)}",
+  metadata: {
+    user_id: "user_#{SecureRandom.hex(4)}",
+    session_id: SecureRandom.hex(16),
+    query_timestamp: 2.hours.ago.iso8601,
+    search_terms: ["password", "reset", "forgot"],
+    generated_from: "semantic_search"
+  }
+)
+
+QuestionAnswer.create!(
+  organization: acme_corp,
+  document: nil,
+  source_type: "chat",
+  question: "What's the difference between staging and production deployments?",
+  answer: "Staging deployments happen daily from the develop branch and require manual triggering, while production deployments occur weekly and require explicit approval. Staging is used for final testing before production release, and both environments have different database configurations and feature flags.",
+  context: nil,
+  confidence_score: 0.91,
+  pinecone_id: "qa_#{acme_corp.id}_#{SecureRandom.hex(8)}",
+  metadata: {
+    conversation_id: SecureRandom.uuid,
+    message_count: 5,
+    chat_timestamp: 1.day.ago.iso8601,
+    related_documents: ["Engineering Handbook"],
+    generated_from: "chat_conversation"
+  }
+)
+
+QuestionAnswer.create!(
+  organization: acme_corp,
+  document: nil,
+  source_type: "query",
+  question: "Who should I contact for API access issues?",
+  answer: "For API access issues, first check if your API token is valid and not expired. If the issue persists, contact the API support team at api-support@acme-corp.com or create a ticket in Jira under the 'API Support' project. Include your client ID and the error messages you're receiving.",
+  context: nil,
+  confidence_score: 0.88,
+  pinecone_id: "qa_#{acme_corp.id}_#{SecureRandom.hex(8)}",
+  metadata: {
+    user_id: "user_#{SecureRandom.hex(4)}",
+    session_id: SecureRandom.hex(16),
+    query_timestamp: 3.hours.ago.iso8601,
+    search_terms: ["API", "access", "contact", "support"],
+    follow_up_questions: ["How do I get an API token?", "What are the API rate limits?"]
+  }
+)
+
+# Startup Inc query-based Q&As
+QuestionAnswer.create!(
+  organization: startup_inc,
+  document: nil,
+  source_type: "query",
+  question: "What is our git branching strategy?",
+  answer: "We follow Git Flow with main, develop, feature, release, and hotfix branches. Feature branches are created from develop, and merge back via pull requests. Release branches are cut from develop for production preparation. Hotfixes branch from main for urgent production fixes.",
+  context: nil,
+  confidence_score: 0.82,
+  pinecone_id: "qa_#{startup_inc.id}_#{SecureRandom.hex(8)}",
+  metadata: {
+    user_id: "user_#{SecureRandom.hex(4)}",
+    session_id: SecureRandom.hex(16),
+    query_timestamp: 6.hours.ago.iso8601,
+    inferred_from_documents: false,
+    manually_verified: true
+  }
+)
+
+QuestionAnswer.create!(
+  organization: startup_inc,
+  document: nil,
+  source_type: "chat",
+  question: "How often do we do releases?",
+  answer: "Based on our current process, we do weekly releases to production every Thursday. However, hotfixes can be deployed anytime if critical issues arise. Feature releases follow the weekly schedule unless specifically planned otherwise for major updates.",
+  context: nil,
+  confidence_score: 0.79,
+  pinecone_id: "qa_#{startup_inc.id}_#{SecureRandom.hex(8)}",
+  metadata: {
+    conversation_id: SecureRandom.uuid,
+    message_count: 3,
+    chat_timestamp: 12.hours.ago.iso8601,
+    confidence_reason: "inferred_from_patterns"
+  }
+)
+
+# Demo org query-based Q&As
+QuestionAnswer.create!(
+  organization: demo_org,
+  document: nil,
+  source_type: "query",
+  question: "What are the system requirements?",
+  answer: "The minimum system requirements are: 8GB RAM, 2.0GHz dual-core processor, 20GB free disk space, and a modern web browser (Chrome 90+, Firefox 88+, Safari 14+, Edge 90+). For optimal performance, we recommend 16GB RAM and an SSD.",
+  context: nil,
+  confidence_score: 0.93,
+  pinecone_id: "qa_#{demo_org.id}_#{SecureRandom.hex(8)}",
+  metadata: {
+    user_id: "demo_user",
+    session_id: SecureRandom.hex(16),
+    query_timestamp: 1.week.ago.iso8601,
+    frequently_asked: true,
+    view_count: 156
+  }
+)
+
+QuestionAnswer.create!(
+  organization: demo_org,
+  document: nil,
+  source_type: "query",
+  question: "Is there a mobile app available?",
+  answer: "Currently, we don't have a native mobile app, but our web application is fully responsive and works well on mobile devices. Native iOS and Android apps are planned for Q4 2024 according to our product roadmap.",
+  context: nil,
+  confidence_score: 0.87,
+  pinecone_id: "qa_#{demo_org.id}_#{SecureRandom.hex(8)}",
+  metadata: {
+    user_id: "demo_user",
+    session_id: SecureRandom.hex(16),
+    query_timestamp: 2.days.ago.iso8601,
+    related_feature_request: "FEAT-1234"
+  }
 )
 
 # Print summary
@@ -703,6 +834,9 @@ puts "Sources created: #{Source.count}"
 puts "Documents created: #{Document.count}"
 puts "Document chunks created: #{DocumentChunk.count}"
 puts "Question/Answer pairs created: #{QuestionAnswer.count}"
+puts "  - From documents: #{QuestionAnswer.from_documents.count}"
+puts "  - From queries: #{QuestionAnswer.from_queries.count}"
+puts "  - From chat: #{QuestionAnswer.from_chat.count}"
 puts "=" * 50
 
 # Print some example queries to try

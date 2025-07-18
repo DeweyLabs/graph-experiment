@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_07_18_135955) do
+ActiveRecord::Schema[8.0].define(version: 2025_07_18_154415) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -56,7 +56,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_07_18_135955) do
 
   create_table "question_answers", force: :cascade do |t|
     t.bigint "organization_id", null: false
-    t.bigint "document_id", null: false
+    t.bigint "document_id"
     t.text "question"
     t.text "answer"
     t.text "context"
@@ -65,8 +65,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_07_18_135955) do
     t.string "pinecone_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "source_type", default: "document"
     t.index ["document_id"], name: "index_question_answers_on_document_id"
+    t.index ["organization_id", "document_id"], name: "index_question_answers_on_org_id_where_no_doc", where: "(document_id IS NULL)"
     t.index ["organization_id"], name: "index_question_answers_on_organization_id"
+    t.index ["source_type"], name: "index_question_answers_on_source_type"
   end
 
   create_table "sources", force: :cascade do |t|
